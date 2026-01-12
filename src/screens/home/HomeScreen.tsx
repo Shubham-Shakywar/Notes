@@ -7,58 +7,80 @@ import {
     Alert,
 } from 'react-native';
 import { FAB, Portal, Searchbar } from 'react-native-paper';
-// import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import styles from './styles';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { supabase } from '../../config/supabase';
+
+type RootStackParamList = {
+    Home: undefined;
+    AddNotes: { note?: any } | undefined;
+    SignUp: undefined;
+};
 
 const HomeScreen = () => {
-    const navigation = useNavigation();
-    const [notes, setNotes] = useState([]);
+    const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+    const [notes, setNotes] = useState<any[]>([]);
     const [search, setSearch] = useState('');
     const [state, setState] = useState({ open: false });
-
     const { open } = state;
 
     useEffect(() => {
         fetchNotes();
-    }, []);
 
-    const fetchNotes = () => {
-        const staticNotes = [
-            { id: '1', title: 'Meeting Notes', content: 'Discuss project timeline and milestones.', created_at: '2025-01-05T10:30:00' },
-            { id: '2', title: 'Shopping List', content: 'Milk, Bread, Eggs, Fruits, Vegetables', created_at: '2025-01-04T08:15:00' },
-            { id: '3', title: 'React Native Tips', content: 'FlatList optimization and memo usage.', created_at: '2025-01-03T14:45:00' },
-            { id: '4', title: 'Workout Plan', content: 'Chest, Back, Legs, Cardio schedule.', created_at: '2025-01-02T07:20:00' },
-            { id: '5', title: 'Interview Prep', content: 'Hooks, Redux, Navigation, APIs.', created_at: '2025-01-01T18:10:00' },
-            { id: '6', title: 'Travel Checklist', content: 'Tickets, Charger, ID, Clothes.', created_at: '2024-12-31T11:00:00' },
-            { id: '7', title: 'Daily Goals', content: 'Code 2 hours and revise concepts.', created_at: '2024-12-30T09:30:00' },
-            { id: '8', title: 'App Ideas', content: 'Notes app, Expense tracker.', created_at: '2024-12-29T16:00:00' },
-            { id: '9', title: 'Learning Plan', content: 'React Native + Supabase.', created_at: '2024-12-28T12:45:00' },
-            { id: '10', title: 'Important Numbers', content: 'Doctor, Bank, Emergency.', created_at: '2024-12-27T10:10:00' },
-        ];
+        const unsubscribe = navigation.addListener('focus', fetchNotes);
+        return unsubscribe;
+    }, [navigation]);
 
-        setNotes(staticNotes);
+    // Fetch notes from Supabase
+    const fetchNotes = async () => {
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
+        if (userErr || !userData?.user) {
+            Alert.alert('Error', 'User not logged in');
+            return;
+        }
+
+        const userId = userData.user.id;
+
+        const { data, error } = await supabase
+            .from('notes')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.log('Fetch Notes Error:', error.message);
+            Alert.alert('Error', 'Failed to fetch notes');
+        } else {
+            setNotes(data || []);
+        }
     };
 
-    const deleteNote = (id) => {
+    // Delete a note
+    const deleteNote = async (id: string) => {
         Alert.alert('Delete Note', 'Are you sure?', [
             { text: 'Cancel' },
             {
                 text: 'Delete',
                 style: 'destructive',
-                onPress: () => {
-                    setNotes(prev => prev.filter(note => note.id !== id));
+                onPress: async () => {
+                    const { error } = await supabase.from('notes').delete().eq('id', id);
+                    if (error) {
+                        Alert.alert('Error', error.message);
+                    } else {
+                        setNotes(prev => prev.filter(note => note.id !== id));
+                    }
                 },
             },
         ]);
     };
 
+    // Filter notes for search
     const filteredNotes = notes.filter(note =>
         note.title.toLowerCase().includes(search.toLowerCase()) ||
-        note.content.toLowerCase().includes(search.toLowerCase())
+        (note.content && note.content.toLowerCase().includes(search.toLowerCase()))
     );
 
-    const renderItem = ({ item }) => (
+    const renderItem = ({ item }: any) => (
         <View style={styles.card}>
             <Text style={styles.date}>
                 {new Date(item.created_at).toDateString()}
@@ -71,7 +93,7 @@ const HomeScreen = () => {
             </Text>
 
             <View style={styles.actions}>
-                <TouchableOpacity onPress={() => Alert.alert('Edit', 'Edit coming soon')}>
+                <TouchableOpacity onPress={() => navigation.navigate('AddNotes', { note: item })}>
                     <Text style={{ color: '#4CAF50', fontWeight: '600' }}>Edit</Text>
                 </TouchableOpacity>
 

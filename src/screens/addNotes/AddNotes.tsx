@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,73 +7,75 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Image,
   ScrollView,
-  Modal,
-  FlatList,
 } from 'react-native';
-import { launchCamera } from 'react-native-image-picker';
 import styles from './styles';
+import { supabase } from '../../config/supabase';
 
-const AddNotes = ({ navigation }: any) => {
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [images, setImages] = useState<any[]>([]);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
+const AddNotes = ({ navigation, route }: any) => {
+  // If editing, route.params.note will have the note data
+  const editingNote = route?.params?.note;
 
-  const pickImage = () => {
-    launchCamera(
-      { mediaType: 'photo', quality: 0.7 },
-      (response) => {
-        if (response.didCancel) return;
-        if (response.errorCode) {
-          Alert.alert('Error', response.errorMessage || 'Camera error');
-          return;
-        }
-        if (response.assets?.length) {
-          setImages(prev => [...prev, ...response.assets]);
-        }
-      }
-    );
-  };
+  const [title, setTitle] = useState(editingNote?.title || '');
+  const [content, setContent] = useState(editingNote?.content || '');
+  const [loading, setLoading] = useState(false);
 
-  const saveNote = () => {
+  // Save or Update Note
+  const saveNote = async () => {
     if (!title || !content) {
       Alert.alert('Error', 'Please enter title and note');
       return;
     }
 
-    Alert.alert('Success', 'Note added successfully', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
-  };
+    setLoading(true);
 
-  const renderImages = () => {
-    const visibleImages = images.slice(0, 4);
-    const remaining = images.length - 4;
+    // Get logged-in user
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData?.user) {
+      setLoading(false);
+      Alert.alert('Error', 'User not logged in');
+      return;
+    }
 
-    return (
-      <View style={styles.imageGrid}>
-        {visibleImages.map((img, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => setPreviewImage(img.uri)}
-          >
-            <Image source={{ uri: img.uri }} style={styles.thumb} />
+    const user = userData.user;
 
-            {index === 3 && remaining > 0 && (
-              <TouchableOpacity
-                style={styles.overlay}
-                onPress={() => setShowAll(true)}
-              >
-                <Text style={styles.overlayText}>+{remaining}</Text>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+    if (editingNote) {
+      // Update existing note
+      const { error } = await supabase
+        .from('notes')
+        .update({ title, content })
+        .eq('id', editingNote.id)
+        .eq('user_id', user.id);
+
+      setLoading(false);
+
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      Alert.alert('Success', 'Note updated successfully', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } else {
+      // Create new note
+      const { error } = await supabase.from('notes').insert({
+        title,
+        content,
+        user_id: user.id,
+      });
+
+      setLoading(false);
+
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      Alert.alert('Success', 'Note added successfully', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    }
   };
 
   return (
@@ -83,7 +85,9 @@ const AddNotes = ({ navigation }: any) => {
     >
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          <Text style={styles.heading}>Add New Note</Text>
+          <Text style={styles.heading}>
+            {editingNote ? 'Edit Note' : 'Add New Note'}
+          </Text>
 
           <TextInput
             placeholder="Title"
@@ -102,53 +106,17 @@ const AddNotes = ({ navigation }: any) => {
             textAlignVertical="top"
           />
 
-          <TouchableOpacity style={styles.imageBtn} onPress={pickImage}>
-            <Text style={styles.imageBtnText}>Add Image</Text>
-          </TouchableOpacity>
-
-          {images.length > 0 && renderImages()}
-
-          <TouchableOpacity style={styles.button} onPress={saveNote}>
-            <Text style={styles.buttonText}>Save Note</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={saveNote}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Saving...' : editingNote ? 'Update Note' : 'Save Note'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* 🔍 Full Image Preview */}
-      <Modal visible={!!previewImage} transparent>
-        <TouchableOpacity
-          style={styles.previewContainer}
-          onPress={() => setPreviewImage(null)}
-        >
-          <Image
-            source={{ uri: previewImage || '' }}
-            style={styles.fullImage}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
-      </Modal>
-
-      {/* 📸 Show All Images */}
-      <Modal visible={showAll}>
-        <View style={styles.allImagesContainer}>
-          <FlatList
-            data={images}
-            numColumns={3}
-            keyExtractor={(_, i) => i.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => setPreviewImage(item.uri)}>
-                <Image source={{ uri: item.uri }} style={styles.allThumb} />
-              </TouchableOpacity>
-            )}
-          />
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => setShowAll(false)}
-          >
-            <Text style={styles.closeText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 };

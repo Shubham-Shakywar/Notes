@@ -10,15 +10,46 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { supabase } from '../../config/supabase';
 
-export default function SignUpScreen() {
+export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
-    
+    if (!email || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign Up Failed', error.message);
+    } else {
+      Alert.alert('Success', 'Account created! Please check your email for verification.', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') },
+      ]);
+    }
   };
 
   return (
@@ -27,11 +58,10 @@ export default function SignUpScreen() {
       style={styles.container}
     >
       <View style={styles.content}>
-        {/* Title */}
+
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Sign up to get started</Text>
 
-        {/* Email */}
         <TextInput
           placeholder="Email"
           value={email}
@@ -41,7 +71,6 @@ export default function SignUpScreen() {
           style={styles.input}
         />
 
-        {/* Password */}
         <TextInput
           placeholder="Password"
           value={password}
@@ -50,7 +79,6 @@ export default function SignUpScreen() {
           style={styles.input}
         />
 
-        {/* Confirm Password */}
         <TextInput
           placeholder="Confirm Password"
           value={confirmPassword}
@@ -59,7 +87,6 @@ export default function SignUpScreen() {
           style={styles.input}
         />
 
-        {/* Sign Up Button */}
         <TouchableOpacity
           style={styles.button}
           onPress={handleSignUp}
@@ -72,12 +99,12 @@ export default function SignUpScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Login Link */}
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
           <Text style={styles.linkText}>
             Already have an account? Login
           </Text>
         </TouchableOpacity>
+
       </View>
     </KeyboardAvoidingView>
   );

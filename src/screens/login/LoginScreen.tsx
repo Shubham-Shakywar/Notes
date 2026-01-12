@@ -9,7 +9,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
+import { supabase } from '../../config/supabase';
+// import { supabase } from '../config/supabase';
 
 type RootStackParamList = {
   Login: undefined;
@@ -24,8 +27,29 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    navigation.navigate('Home');
-  }
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setLoading(false);
+    console.log("data---->", data)
+    console.log("error---->", error)
+    if (error) {
+      Alert.alert('Login Failed', error.message);
+    } else {
+      // Login successful
+      navigation.navigate('Home');
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
