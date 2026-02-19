@@ -10,12 +10,15 @@ import { FAB, Portal, Searchbar } from 'react-native-paper';
 import styles from './styles';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { supabase } from '../../config/supabase';
+import Header from '../../components/header/Header';
 
 type RootStackParamList = {
     Home: undefined;
     AddNotes: { note?: any } | undefined;
     SignUp: undefined;
 };
+
+const CARD_COLORS = ['#FFF8E1', '#E8F5E9', '#E3F2FD', '#FCE4EC', '#F3E5F5', '#E0F7FA'];
 
 const HomeScreen = () => {
     const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -26,21 +29,17 @@ const HomeScreen = () => {
 
     useEffect(() => {
         fetchNotes();
-
         const unsubscribe = navigation.addListener('focus', fetchNotes);
         return unsubscribe;
     }, [navigation]);
 
-    // Fetch notes from Supabase
     const fetchNotes = async () => {
         const { data: userData, error: userErr } = await supabase.auth.getUser();
         if (userErr || !userData?.user) {
             Alert.alert('Error', 'User not logged in');
             return;
         }
-
         const userId = userData.user.id;
-
         const { data, error } = await supabase
             .from('notes')
             .select('*')
@@ -48,17 +47,15 @@ const HomeScreen = () => {
             .order('created_at', { ascending: false });
 
         if (error) {
-            console.log('Fetch Notes Error:', error.message);
             Alert.alert('Error', 'Failed to fetch notes');
         } else {
             setNotes(data || []);
         }
     };
 
-    // Delete a note
     const deleteNote = async (id: string) => {
-        Alert.alert('Delete Note', 'Are you sure?', [
-            { text: 'Cancel' },
+        Alert.alert('Delete Note', 'Are you sure you want to delete this note?', [
+            { text: 'Cancel', style: 'cancel' },
             {
                 text: 'Delete',
                 style: 'destructive',
@@ -74,66 +71,126 @@ const HomeScreen = () => {
         ]);
     };
 
-    // Filter notes for search
     const filteredNotes = notes.filter(note =>
         note.title.toLowerCase().includes(search.toLowerCase()) ||
         (note.content && note.content.toLowerCase().includes(search.toLowerCase()))
     );
 
-    const renderItem = ({ item }: any) => (
-        <View style={styles.card}>
-            <Text style={styles.date}>
-                {new Date(item.created_at).toDateString()}
-            </Text>
+    const renderItem = ({ item, index }: any) => {
+        const cardColor = CARD_COLORS[index % CARD_COLORS.length];
+        return (
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate('AddNotes', { note: item })}
+                style={[styles.card, { backgroundColor: cardColor }]}
+            >
+                <View style={styles.cardHeader}>
+                    <View style={styles.dateBadge}>
+                        <Text style={styles.date}>
+                            {new Date(item.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                            })}
+                        </Text>
+                    </View>
+                    <View style={[styles.dot, { backgroundColor: '#F0B928' }]} />
+                </View>
 
-            <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
 
-            <Text style={styles.content} numberOfLines={3}>
-                {item.content}
-            </Text>
+                <Text style={styles.content} numberOfLines={2}>
+                    {item.content}
+                </Text>
 
-            <View style={styles.actions}>
-                <TouchableOpacity onPress={() => navigation.navigate('AddNotes', { note: item })}>
-                    <Text style={{ color: '#4CAF50', fontWeight: '600' }}>Edit</Text>
-                </TouchableOpacity>
+                <View style={styles.divider} />
 
-                <TouchableOpacity onPress={() => deleteNote(item.id)}>
-                    <Text style={{ color: '#F44336', fontWeight: '600' }}>Delete</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
+                <View style={styles.actions}>
+                    <TouchableOpacity
+                        style={styles.editBtn}
+                        onPress={() => navigation.navigate('AddNotes', { note: item })}
+                    >
+                        <Text style={styles.editBtnText}>✏️  Edit</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => deleteNote(item.id)}
+                    >
+                        <Text style={styles.deleteBtnText}>🗑  Delete</Text>
+                    </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
-            <Searchbar
-                placeholder="Search notes..."
-                value={search}
-                onChangeText={setSearch}
-                style={styles.search}
-            />
+            <Header />
 
-            <FlatList
-                data={filteredNotes}
-                keyExtractor={item => item.id}
-                renderItem={renderItem}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={<Text style={styles.empty}>No notes found</Text>}
-            />
+            <View style={styles.contentContainer}>
+                <View style={styles.statsBar}>
+                    <Text style={styles.statsText}>
+                        {filteredNotes.length} {filteredNotes.length === 1 ? 'Note' : 'Notes'}
+                    </Text>
+                    <Text style={styles.statsSubText}>Keep your thoughts organized ✨</Text>
+                </View>
 
-            <Portal>
-                <FAB.Group
-                    visible
-                    open={open}
-                    icon={open ? 'close' : 'plus'}
-                    actions={[
-                        { icon: 'plus', label: 'Add Note', onPress: () => navigation.navigate('AddNotes') },
-                        { icon: 'star', label: 'Starred', onPress: () => console.log('Star') },
-                        { icon: 'bell', label: 'Reminder', onPress: () => console.log('Reminder') },
-                    ]}
-                    onStateChange={({ open }) => setState({ open })}
+                <Searchbar
+                    placeholder="Search notes..."
+                    value={search}
+                    onChangeText={setSearch}
+                    style={styles.search}
+                    inputStyle={styles.searchInput}
+                    iconColor="#F0B928"
+                    placeholderTextColor="#BDBDBD"
                 />
-            </Portal>
+
+                <FlatList
+                    data={filteredNotes}
+                    keyExtractor={item => item.id}
+                    renderItem={renderItem}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 120 }}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyIcon}>📝</Text>
+                            <Text style={styles.emptyTitle}>No notes yet</Text>
+                            <Text style={styles.emptySubtitle}>Tap + to create your first note</Text>
+                        </View>
+                    }
+                />
+
+                <Portal>
+                    <FAB.Group
+                        visible
+                        open={open}
+                        icon={open ? 'close' : 'plus'}
+                        fabStyle={styles.fab}
+                        actions={[
+                            {
+                                icon: 'plus',
+                                label: 'Add Note',
+                                onPress: () => navigation.navigate('AddNotes'),
+                                style: styles.fabAction,
+                            },
+                            {
+                                icon: 'star',
+                                label: 'Starred',
+                                onPress: () => console.log('Star'),
+                                style: styles.fabAction,
+                            },
+                            {
+                                icon: 'bell',
+                                label: 'Reminder',
+                                onPress: () => console.log('Reminder'),
+                                style: styles.fabAction,
+                            },
+                        ]}
+                        onStateChange={({ open }) => setState({ open })}
+                    />
+                </Portal>
+            </View>
         </View>
     );
 };

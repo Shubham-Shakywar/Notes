@@ -12,7 +12,6 @@ import {
   Alert,
 } from 'react-native';
 import { supabase } from '../../config/supabase';
-// import { supabase } from '../config/supabase';
 
 type RootStackParamList = {
   Login: undefined;
