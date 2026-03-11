@@ -9,17 +9,20 @@ import {
   Alert,
   ScrollView,
   StatusBar,
+  NativeModules,
 } from 'react-native';
 import styles from './styles';
 import { supabase } from '../../config/supabase';
 import { IconButton } from 'react-native-paper';
 
+const { SpeechModule } = NativeModules;
 
 const AddNotes = ({ navigation, route }: any) => {
   const editingNote = route?.params?.note;
 
   const [title, setTitle] = useState(editingNote?.title || '');
   const [content, setContent] = useState(editingNote?.content || '');
+  const [category, setCategory] = useState(editingNote?.category || '');
   const [loading, setLoading] = useState(false);
   const [titleFocused, setTitleFocused] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
@@ -44,7 +47,7 @@ const AddNotes = ({ navigation, route }: any) => {
     if (editingNote) {
       const { error } = await supabase
         .from('notes')
-        .update({ title, content })
+        .update({ title, content, category })
         .eq('id', editingNote.id)
         .eq('user_id', user.id);
 
@@ -58,6 +61,7 @@ const AddNotes = ({ navigation, route }: any) => {
       const { error } = await supabase.from('notes').insert({
         title,
         content,
+        category,
         user_id: user.id,
       });
 
@@ -70,6 +74,34 @@ const AddNotes = ({ navigation, route }: any) => {
     }
   };
 
+
+
+  // mic 
+
+  const [transcript, setTranscript] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [error, setError] = useState('');
+
+ const handleStart = async () => {
+    try {
+      setError('');
+      setTranscript('');
+      setIsListening(true);
+
+      // This opens the Android speech dialog.
+      // It resolves when the user finishes speaking (acting as "stop").
+      const result = await SpeechModule.startSpeech();
+      setTranscript(result);
+      setContent((prev: string) => prev + ' ' + result);
+    } catch (e: any) {
+      setError(e?.message || 'Speech recognition failed');
+    } finally {
+      setIsListening(false);
+    }
+  };
+
+  // mic
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -80,13 +112,13 @@ const AddNotes = ({ navigation, route }: any) => {
       {/* Custom Header */}
       <View style={styles.header}>
         {/* <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}> */}
-<IconButton
-  icon="arrow-left"
-  size={26}
-  iconColor="white"
-  style={{ marginLeft: -8 }}
-  onPress={() => navigation.goBack()}
-/>
+        <IconButton
+          icon="arrow-left"
+          size={26}
+          iconColor="white"
+          style={{ marginLeft: -8 }}
+          onPress={() => navigation.goBack()}
+        />
 
         {/* </TouchableOpacity> */}
         <Text style={styles.headerTitle}>
@@ -107,6 +139,20 @@ const AddNotes = ({ navigation, route }: any) => {
           <Text style={styles.metaText}>
             {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </Text>
+        </View>
+
+        {/* Category Input */}
+        <View style={[styles.inputWrapper, titleFocused && styles.inputWrapperFocused]}>
+          <Text style={styles.inputLabel}>Category</Text>
+          <TextInput
+            placeholder="Give your note a category..."
+            placeholderTextColor="#BDBDBD"
+            value={category}
+            onChangeText={setCategory}
+            style={styles.input}
+            onFocus={() => setTitleFocused(true)}
+            onBlur={() => setTitleFocused(false)}
+          />
         </View>
 
         {/* Title Input */}
@@ -137,6 +183,7 @@ const AddNotes = ({ navigation, route }: any) => {
             onFocus={() => setContentFocused(true)}
             onBlur={() => setContentFocused(false)}
           />
+          <Text  onPress={handleStart}>mic</Text>
         </View>
 
         {/* Save Button */}

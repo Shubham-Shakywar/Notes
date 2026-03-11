@@ -22,6 +22,8 @@ const CARD_COLORS = ['#FFF8E1', '#E8F5E9', '#E3F2FD', '#FCE4EC', '#F3E5F5', '#E0
 
 const HomeScreen = () => {
     const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+    const [catagory, setCategory] = useState<string[]>([]);
+    const [catagorySelected, setCategorySelected] = useState<string>(catagory[0] || '');
     const [notes, setNotes] = useState<any[]>([]);
     const [search, setSearch] = useState('');
     const [state, setState] = useState({ open: false });
@@ -50,6 +52,20 @@ const HomeScreen = () => {
             Alert.alert('Error', 'Failed to fetch notes');
         } else {
             setNotes(data || []);
+            const categories = [
+                "All",
+                ...new Set(
+                    data
+                        ?.map(note => note.category?.trim())
+                        .filter(cat => cat)
+                )
+            ];
+
+            // console.log("Unique Categories ---->", categories);
+            setCategory(categories)
+            if (categories.length > 0) {
+                setCategorySelected(categories[0]);
+            }
         }
     };
 
@@ -71,10 +87,16 @@ const HomeScreen = () => {
         ]);
     };
 
-    const filteredNotes = notes.filter(note =>
-        note.title.toLowerCase().includes(search.toLowerCase()) ||
-        (note.content && note.content.toLowerCase().includes(search.toLowerCase()))
-    );
+    const filteredNotes = notes.filter(note => {
+        const matchesSearch =
+            note.title.toLowerCase().includes(search.toLowerCase()) ||
+            (note.content && note.content.toLowerCase().includes(search.toLowerCase()));
+
+        const matchesCategory =
+            catagorySelected === "All" ? true : note.category === catagorySelected;
+
+        return matchesSearch && matchesCategory;
+    });
 
     const renderItem = ({ item, index }: any) => {
         const cardColor = CARD_COLORS[index % CARD_COLORS.length];
@@ -145,7 +167,18 @@ const HomeScreen = () => {
                     iconColor="#F0B928"
                     placeholderTextColor="#BDBDBD"
                 />
-
+                <View style={{ borderWidth: 0, marginVertical: 10 }}>
+                    <FlatList
+                        data={catagory}
+                        showsHorizontalScrollIndicator={false}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity style={{ borderWidth: 1, marginHorizontal: 5, borderRadius: 10, paddingHorizontal: 15, paddingVertical: 5, backgroundColor: '#e0a6121d', borderColor: catagorySelected === item ? '#F0B928' : 'white' }} onPress={() => setCategorySelected(item)}>
+                                <Text style={{ fontSize: 16, color: '#F0B928' }}>{item}</Text>
+                            </TouchableOpacity>
+                        )}
+                        horizontal
+                    />
+                </View>
                 <FlatList
                     data={filteredNotes}
                     keyExtractor={item => item.id}
